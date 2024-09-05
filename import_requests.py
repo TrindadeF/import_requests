@@ -6,6 +6,7 @@ from selenium.common.exceptions import TimeoutException, UnexpectedAlertPresentE
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
+import re
 
 # Configurações do Selenium
 options = webdriver.ChromeOptions()
@@ -45,29 +46,26 @@ def extrair_detalhes_parcel(soup):
         container_div = soup.find('div', class_='dContainer')
 
         if container_div:
-            # Encontrar todas as divs que contêm o texto
-            divs = container_div.find_all('div', limit=60)  
-            current_key = None
+            divs = container_div.find_all('div', limit=60)
 
             for div in divs:
-                text = div.get_text(separator='\n', strip=True)
-                print("Texto encontrado:", text)  # Log para verificar o que está sendo encontrado
+                text = div.get_text(separator=' ', strip=True)
+                
+                # Verifica se o texto segue o padrão chave: valor
+                if ':' not in text:
+                    continue
+                
+                # Trata o texto para remover informações redundantes
+                text = text.replace('Tax Sale Date:', 'Tax Sale Date:').replace('Tax Year:', 'Tax Year:').replace('Parcel Number:', 'Parcel Number:').replace('PPIN:', 'PPIN:').replace('Assessed Owners:', 'Assessed Owners:')
+                
+                key_value = text.split(':', 1)
+                if len(key_value) == 2:
+                    key = key_value[0].strip()
+                    value = key_value[1].strip()
 
-                # Ajuste de extração para capturar pares chave-valor
-                if ':' in text:
-                    parts = text.split(':', 1)
-                    key = parts[0].strip()
-                    value = parts[1].strip() if len(parts) > 1 else ''
-                    current_key = key if value else current_key  # Define chave corrente se não houver valor imediato
-                    detalhes[current_key] = value if value else detalhes.get(current_key, '')
-                elif current_key:
-                    # Caso onde o valor está em uma linha separada, mas temos uma chave corrente
-                    detalhes[current_key] += f' {text}' if detalhes[current_key] else text
-
-        else:
-            print("Não encontrou a div com a classe 'dContainer'.")
-            # Log para depuração, mostrando o HTML completo da página
-            print(soup.prettify())  
+                    # Adiciona chave-valor ao dicionário de detalhes
+                    if key and value:
+                        detalhes[key] = value
 
         return detalhes
     except Exception as e:
