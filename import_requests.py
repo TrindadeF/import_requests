@@ -4,10 +4,21 @@ from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, UnexpectedAlertPresentException, NoSuchElementException
 from bs4 import BeautifulSoup
+from google.oauth2.service_account import Credentials
+from gspread_dataframe import set_with_dataframe
+from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
+from dotenv import load_dotenv
 import pandas as pd
 import time
 import sys
 import signal
+import gspread
+import os
+
+
+load_dotenv()
+
 
 options = webdriver.ChromeOptions()
 options.add_argument("--disable-popup-blocking")
@@ -144,16 +155,54 @@ def avancar_para_proxima_pagina():
     except TimeoutException:
         print("Botão 'Next >>' não encontrado, fim da paginação.")
         return False
+    
 
-def salvar_como_csv(data, nome_arquivo):
-    if data:
-        df = pd.DataFrame(data)
-        df.to_csv(nome_arquivo, index=False)
-        print(f"Dados salvos em {nome_arquivo}")
+def autenticar_google_sheets():
+    
+    credentials_info = {
+        "type": os.getenv("GOOGLE_TYPE"),
+        "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+        "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
+        "private_key": os.getenv("GOOGLE_PRIVATE_KEY").replace("\\n", "\n"),  
+        "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
+        "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
+        "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_CERT_URL"),
+        "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_CERT_URL"),
+    }
+
+    SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+    credentials = Credentials.from_service_account_info(credentials_info)
+    cliente = gspread.authorize(credentials)
+    return cliente
+
+def salvar_em_google_sheets(data, nome_planilha, nome_aba):
+    try:
+        cliente = autenticar_google_sheets()  
+        
+        planilha = cliente.open(nome_planilha)
+        
+        try:
+            aba = planilha.worksheet(nome_aba)
+        except gspread.exceptions.WorksheetNotFound:
+            aba = planilha.add_worksheet(title=nome_aba, rows="100", cols="20")
+        
+        if data:
+            headers = list(data[0].keys())  
+            valores = [list(item.values()) for item in data]  
+
+            aba.clear()  
+            aba.append_row(headers) 
+            aba.append_rows(valores)  
+            
+            print(f"Dados enviados para a aba '{nome_aba}' na planilha '{nome_planilha}' com sucesso.")
+    except Exception as e:
+        print(f"Erro ao salvar dados no Google Sheets: {e}")
 
 def stop_scrapping(signal, frame):
      print("\nInterrupção recebida! Salvando dados coletados...")
-     salvar_como_csv(data, 'dados_coletados.csv')
+     salvar_em_google_sheets(data, 'Scrapping Test', "Test")
      print("Dados salvos. Encerrando o script.")
      driver.quit()
      sys.exit()
@@ -161,8 +210,12 @@ def stop_scrapping(signal, frame):
 signal.signal(signal.SIGINT, stop_scrapping)
 
 select_all_counties_except_first()
+
 scan_page()
+
 while avancar_para_proxima_pagina():
     scan_page()
-salvar_como_csv(data, 'dados_coletados.csv')
+
+salvar_em_google_sheets(data, "Scrapping Test", "Test")
+
 driver.quit()
