@@ -5,9 +5,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, UnexpectedAlertPresentException, NoSuchElementException
 from bs4 import BeautifulSoup
 from google.oauth2.service_account import Credentials
-from gspread_dataframe import set_with_dataframe
-from oauth2client.service_account import ServiceAccountCredentials
-from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 import pandas as pd
 import time
@@ -170,10 +167,13 @@ def autenticar_google_sheets():
         "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
         "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_CERT_URL"),
         "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_CERT_URL"),
+        "universe_domain": os.getenv("GOOGLE_UNIVERSE_DOMAIN")
     }
 
-    SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-    credentials = Credentials.from_service_account_info(credentials_info)
+    SCOPES = ['https://www.googleapis.com/auth/spreadsheets',
+              "https://www.googleapis.com/auth/drive"]
+
+    credentials = Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
     cliente = gspread.authorize(credentials)
     return cliente
 
@@ -216,6 +216,6 @@ scan_page()
 while avancar_para_proxima_pagina():
     scan_page()
 
-salvar_em_google_sheets(data, "Scrapping Test", "Test")
+salvar_em_google_sheets(data, "Scrapping Test", "Mississípi")
 
 driver.quit()
