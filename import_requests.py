@@ -3,6 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, UnexpectedAlertPresentException, NoSuchElementException
+from selenium.webdriver.common.action_chains import ActionChains
 from bs4 import BeautifulSoup
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
@@ -55,22 +56,29 @@ def extrair_detalhes_parcel(soup):
     try:
         container_div = soup.find('div', class_='dContainer')
         if container_div:
-            divs = container_div.find_all('div', limit=60)
+            rows = container_div.find_all('div', class_='dRow')
+            
+            rows = rows[2:13] 
 
-            for div in divs:
-                text = div.get_text(separator=' ', strip=True)
-                if ':' not in text:
-                    continue
-                text = text.replace('Tax Sale Date:', 'Tax Sale Date:').replace('Tax Year:', 'Tax Year:').replace('Parcel Number:', 'Parcel Number:').replace('PPIN:', 'PPIN:').replace('Assessed Owners:', 'Assessed Owners:')
-                key_value = text.split(':', 1)
-                if len(key_value) == 2:
-                    key = key_value[0].strip()
-                    value = key_value[1].strip()
-                    if key and value:
-                        detalhes[key] = value
+            for row in rows:
+                divs = row.find_all(['div'], class_=['dCell', 'dCellGrowable'])
+                
+                for i in range(0, len(divs), 2):
+                    if i + 1 < len(divs):  
+                        chave = divs[i].get_text(separator=' ', strip=True)
+                        valor = divs[i + 1].get_text(separator=' ', strip=True)
+
+                        if not chave:
+                            chave = 'Adress Continue'
+                        if not valor:
+                            valor = 'N/A'
+                        
+                        if chave and valor:
+                            detalhes[chave] = valor
     except Exception as e:
         print(f"Erro ao extrair detalhes: {e}")
     return detalhes
+
 
 def coletar_dados():
     try:
@@ -109,12 +117,15 @@ def select_all_counties_except_first():
     except (TimeoutException, NoSuchElementException) as e:
         print(f"Erro ao tentar selecionar condados ou iniciar pesquisa: {e}")
 
+
 def scan_page():
     try:
         details_buttons = WebDriverWait(driver, 30).until(
             EC.presence_of_all_elements_located((By.ID, 'getDetail'))
         )
         for index, details_button in enumerate(details_buttons):
+            driver.execute_script("arguments[0].scrollIntoView(true);", details_button)
+            WebDriverWait(driver, 10).until(EC.element_to_be_clickable(details_button))
             try:
                 print(f"Processando o item {index + 1} de {len(details_buttons)}")
                 details_button.click()
@@ -135,6 +146,7 @@ def scan_page():
                 continue
     except TimeoutException as e:
         print(f"Erro ao encontrar botões de detalhes: {e}")
+
 
 def avancar_para_proxima_pagina():
     try:
@@ -202,7 +214,7 @@ def salvar_em_google_sheets(data, nome_planilha, nome_aba):
 
 def stop_scrapping(signal, frame):
      print("\nInterrupção recebida! Salvando dados coletados...")
-     salvar_em_google_sheets(data, 'Scrapping Test', "Test")
+     salvar_em_google_sheets(data, ' Taxes Deed Research GoogleSheet ', "Mississípi")
      print("Dados salvos. Encerrando o script.")
      driver.quit()
      sys.exit()
@@ -216,6 +228,6 @@ scan_page()
 while avancar_para_proxima_pagina():
     scan_page()
 
-salvar_em_google_sheets(data, "Scrapping Test", "Mississípi")
+salvar_em_google_sheets(data, " Taxes Deed Research GoogleSheet ", "Mississípi")
 
 driver.quit()
