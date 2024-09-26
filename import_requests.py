@@ -6,17 +6,11 @@ from selenium.common.exceptions import TimeoutException, UnexpectedAlertPresentE
 from selenium.webdriver.common.action_chains import ActionChains
 from bs4 import BeautifulSoup
 from google.oauth2.service_account import Credentials
-from dotenv import load_dotenv
 import pandas as pd
 import time
 import sys
 import signal
 import gspread
-import os
-
-
-load_dotenv()
-
 
 options = webdriver.ChromeOptions()
 options.add_argument("--disable-popup-blocking")
@@ -98,24 +92,38 @@ def coletar_dados():
     except (TimeoutException, NoSuchElementException) as e:
         print(f"Erro ao coletar dados: {e}")
 
-def select_all_counties_except_first():
+def select_county_by_user_input():
     try:
+        print("Lista de condados disponíveis:")
         for i, county in enumerate(county_options):
-            if i == 0:
-                continue
-            county_select.select_by_value(county)
-        print("Todos os condados, exceto o primeiro, foram selecionados.")
+            print(f"{i+1}: {county}")
+
+        county_input = input("Digite o número do condado que deseja selecionar: ")
+
+        try:
+            county_index = int(county_input) - 1  
+            if 0 <= county_index < len(county_options):
+                county_select.select_by_value(county_options[county_index])
+                print(f"Condado '{county_options[county_index]}' selecionado com sucesso.")
+            else:
+                print("Número inválido. Selecione um número da lista.")
+        except ValueError:
+            print("Entrada inválida. Digite um número.")
+
         search_button = WebDriverWait(driver, 30).until(
             EC.element_to_be_clickable((By.ID, 'doSearch'))
         )
         search_button.click()
+
     except UnexpectedAlertPresentException as alert_exception:
         alert = driver.switch_to.alert
         print(f"Alerta presente: {alert.text}")
         alert.accept()
-        print("Alerta aceito. Continuando com o próximo condado.")
+        print("Alerta aceito. Continuando com a seleção do condado.")
     except (TimeoutException, NoSuchElementException) as e:
-        print(f"Erro ao tentar selecionar condados ou iniciar pesquisa: {e}")
+        print(f"Erro ao tentar selecionar o condado ou iniciar a pesquisa: {e}")
+
+
 
 
 def scan_page():
@@ -204,11 +212,14 @@ def salvar_em_google_sheets(data, nome_planilha, nome_aba):
             headers = list(data[0].keys())  
             valores = [list(item.values()) for item in data]  
 
-            aba.clear()  
-            aba.append_row(headers) 
-            aba.append_rows(valores)  
+            existing_data = aba.get_all_values()
             
+            if not existing_data: 
+                aba.append_row(headers)
+    
+            aba.append_rows(valores)
             print(f"Dados enviados para a aba '{nome_aba}' na planilha '{nome_planilha}' com sucesso.")
+    
     except Exception as e:
         print(f"Erro ao salvar dados no Google Sheets: {e}")
 
@@ -221,7 +232,7 @@ def stop_scrapping(signal, frame):
 
 signal.signal(signal.SIGINT, stop_scrapping)
 
-select_all_counties_except_first()
+select_county_by_user_input()
 
 scan_page()
 
