@@ -10,6 +10,7 @@ import pandas as pd
 import time
 import sys
 import signal
+import os
 import gspread
 
 options = webdriver.ChromeOptions()
